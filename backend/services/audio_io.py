@@ -156,13 +156,24 @@ def _safe_torchaudio_save(
     fmt = (format or "wav").lower()
     try:
         if fmt == "wav":
-            torchaudio.save(
+            # torchaudio 2.9 removed the sox/soundfile backends and routes
+            # save() through TorchCodec exclusively — whose CUDA-linked
+            # wheels cannot even load outside a full CUDA toolkit
+            # environment (libnppicc.so.12 et al.). WAV encoding is exactly
+            # what soundfile does best, so encode via the audited sibling
+            # helper with the equivalent subtype: same bytes on disk, no
+            # TorchCodec import on the critical path.
+            subtype = "FLOAT" if encoding == "PCM_F" else {
+                16: "PCM_16",
+                24: "PCM_24",
+                32: "PCM_32",
+                64: "DOUBLE",
+            }.get(bits_per_sample, "PCM_16")
+            _safe_soundfile_write(
                 path_or_buf,
-                tensor,
+                tensor.numpy().T,
                 sample_rate,
-                format=fmt,
-                encoding=encoding,
-                bits_per_sample=bits_per_sample,
+                subtype=subtype,
             )
         else:
             # FLAC accepts encoding + bits_per_sample; mp3/ogg ignore
