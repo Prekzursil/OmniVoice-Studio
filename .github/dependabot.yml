@@ -1,0 +1,42 @@
+# Dependabot version updates — fleet security standard.
+# Weekly, every ecosystem present in the repository, zero ignored updates
+# (never ignore semver-major — fleet rule).
+#
+# Ecosystem inventory:
+#   pip           /                  (pyproject.toml + uv.lock)
+#   npm           /                  (root package.json + bun.lock, workspace root)
+#   npm           /frontend          (frontend/package.json, covered by root bun.lock)
+#   npm           /scripts           (scripts/package.json)
+#   cargo         /frontend/src-tauri (Cargo.toml + Cargo.lock — the Tauri app)
+#   docker        /deploy            (deploy/Dockerfile — multi-stage bun+pytorch)
+#   github-actions /                (.github/workflows/*)
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/scripts"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "cargo"
+    directory: "/frontend/src-tauri"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/deploy"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -4,6 +4,8 @@ issue construction. No network, no auto-submit.
 
 from __future__ import annotations
 
+import subprocess
+import tempfile
 import urllib.parse
 
 from . import triage as T
@@ -31,10 +33,23 @@ def test_sanitize_strips_home_and_secrets():
     assert "[REDACTED]" in T.sanitize("token hf_abcdef123456 leaked")
 
 
+def _repo_with_origin(url: str) -> str:
+    """Hermetic throwaway git repo whose origin is `url` — keeps these tests
+    independent of which fork this checkout actually points at (the hard
+    "debpalash" assertions used to fail on any fork whose origin differs)."""
+    d = tempfile.mkdtemp(prefix="probe-origin-")
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "remote", "add", "origin", url], check=True)
+    return d
+
+
 def test_detect_repo_from_origin():
-    # This repo's origin is github.com/debpalash/OmniVoice-Studio.
-    repo = T.detect_repo()
-    assert repo == ("debpalash", "OmniVoice-Studio")
+    # Parse a synthetic origin (https + ssh forms) rather than this
+    # checkout's real remote, so the test passes on any fork.
+    https_dir = _repo_with_origin("https://github.com/debpalash/OmniVoice-Studio.git")
+    ssh_dir = _repo_with_origin("git@github.com:debpalash/OmniVoice-Studio.git")
+    assert T.detect_repo(cwd=https_dir) == ("debpalash", "OmniVoice-Studio")
+    assert T.detect_repo(cwd=ssh_dir) == ("debpalash", "OmniVoice-Studio")
 
 
 def test_clustering_dedupes_and_excludes_nonblocking():
@@ -54,7 +69,8 @@ def test_build_issue_title_and_table():
 
 
 def test_triage_builds_github_url():
-    res = T.triage(_failing_report())
+    res = T.triage(_failing_report(), cwd=_repo_with_origin(
+        "https://github.com/debpalash/OmniVoice-Studio.git"))
     assert res.owner == "debpalash" and res.repo == "OmniVoice-Studio"
     assert res.url and res.url.startswith(
         "https://github.com/debpalash/OmniVoice-Studio/issues/new?"
