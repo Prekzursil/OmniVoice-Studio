@@ -156,9 +156,7 @@ except Exception:
     pass  # prefs.json missing or broken — fine on first run
 
 warnings.filterwarnings("ignore", category=UserWarning)
-# torchaudio.set_audio_backend("soundfile") — removed: the backend-dispatch API
-# was deprecated in torchaudio 2.1 (dispatch is automatic via torchaudio.load)
-# and the setter was deleted in torchaudio 2.9, breaking first-run boot.
+torchaudio.set_audio_backend("soundfile")
 
 
 class _WindowsSafeRotatingFileHandler(RotatingFileHandler):
