@@ -176,8 +176,8 @@ explicit = true
 
 [tool.uv]
 constraint-dependencies = [
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
+    "torch==2.9.1",
+    "torchaudio==2.9.1",
 ]
 
 [tool.hatch.metadata]
