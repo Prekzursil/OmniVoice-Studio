@@ -174,6 +174,8 @@ def _safe_torchaudio_save(
                 tensor.numpy().T,
                 sample_rate,
                 subtype=subtype,
+                # file-like targets carry no extension for soundfile to sniff
+                sf_format="WAV",
             )
         else:
             # FLAC accepts encoding + bits_per_sample; mp3/ogg ignore
@@ -217,6 +219,7 @@ def _safe_soundfile_write(
     sample_rate: int,
     *,
     subtype: str = "PCM_16",
+    sf_format: str | None = None,
 ) -> None:
     """Sibling helper for the one in-tree ``sf.write`` site.
 
@@ -234,6 +237,9 @@ def _safe_soundfile_write(
         subtype: Soundfile subtype string. ``"PCM_16"`` (default) for
             standard 16-bit PCM WAV; ``"PCM_24"``, ``"FLOAT"`` etc.
             also work.
+        sf_format: Explicit libsndfile format (e.g. ``"WAV"``). Required
+            when writing to a file-like object — soundfile cannot infer the
+            container from a filename-less buffer.
 
     Raises:
         ValueError: if the array is empty.
@@ -270,7 +276,10 @@ def _safe_soundfile_write(
     else:
         samples = np.ascontiguousarray(samples)
 
-    sf.write(path, samples, sample_rate, subtype=subtype)
+    if sf_format is not None:
+        sf.write(path, samples, sample_rate, subtype=subtype, format=sf_format)
+    else:
+        sf.write(path, samples, sample_rate, subtype=subtype)
 
 
 def atomic_save_wav(
