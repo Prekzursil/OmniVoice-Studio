@@ -54,7 +54,7 @@ jobs:
           - os: windows-latest
             platform: windows-x86_64
             experimental: false
-          - os: macos-14
+          - os: macos-15
             platform: darwin-arm64
             # Metal build path is unpublished upstream (Pitfall 1 in
             # 04-RESEARCH.md); experimental so a failed Metal build doesn't
