@@ -166,6 +166,12 @@ torch = [
 torchaudio = [
   { index = "pytorch-cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+# torchcodec must come from the SAME index as torch/torchaudio: the PyPI build
+# links against CUDA 13's libnvrtc, which is not present next to the cu128
+# torch stack (and cannot be loaded on the CUDA-less CI runners).
+torchcodec = [
+  { index = "pytorch-cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
