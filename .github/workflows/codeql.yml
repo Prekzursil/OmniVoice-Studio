@@ -14,9 +14,10 @@
 #
 # Build modes:
 #   python / javascript-typescript : none (interpreted analysis)
-#   rust                           : manual — cargo build of the Tauri app
-#                                    (frontend/src-tauri), with the same
-#                                    system deps the release workflow uses.
+#   rust                           : none — the CodeQL Rust extractor
+#                                    analyses source using Cargo metadata and
+#                                    does not compile (rust supports only the
+#                                    none build mode).
 name: CodeQL
 
 on:
@@ -57,33 +58,12 @@ jobs:
           - language: javascript-typescript
             build-mode: none
           - language: rust
-            build-mode: manual
+            build-mode: none
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      # Tauri host requirements (same package set as release.yml's Linux leg).
-      - name: Linux system deps (rust only)
-        if: matrix.language == 'rust'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential curl wget file libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev \
-            libasound2-dev
-
-      - name: Setup Rust (stable) (rust only)
-        if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        if: matrix.language == 'rust'
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: frontend/src-tauri -> target
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -91,17 +71,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended,security-and-quality
-
-      # Manual build for rust: compile the Tauri app crate. tauri-build's
-      # codegen requires the configured frontendDist directory to exist; the
-      # placeholder is only build scaffolding for the cargo build (the real
-      # frontend is built by ci.yml/release.yml separately).
-      - name: Build Rust crate (cargo build)
-        if: matrix.language == 'rust'
-        run: |
-          set -euo pipefail
-          mkdir -p frontend/dist
-          cargo build --manifest-path frontend/src-tauri/Cargo.toml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
