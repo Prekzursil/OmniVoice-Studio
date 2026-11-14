@@ -1,0 +1,109 @@
+# Advanced CodeQL analysis — fleet security standard.
+#
+# Per the fleet CODEQL decision: advanced (workflow) configuration with the
+# security-extended + security-and-quality suites (strictly subsumes the
+# default and extended suites), matrix over every language this repository
+# actually has (python, javascript-typescript, rust), triggered on push to
+# main, pull requests targeting main, and a weekly schedule. Results upload
+# to code scanning with a category per language.
+#
+# This workflow REPLACES the CodeQL job that lived in security.yml (which
+# ran only security-and-quality and excluded several trees via paths-ignore;
+# the fleet standard analyses the whole repository with both suites).
+# gitleaks / bandit / dependency audits remain in security.yml unchanged.
+#
+# Build modes:
+#   python / javascript-typescript : none (interpreted analysis)
+#   rust                           : manual — cargo build of the Tauri app
+#                                    (frontend/src-tauri), with the same
+#                                    system deps the release workflow uses.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+env:
+  # Run JS actions on Node 24 (GH removes Node 20 in Sep 2026) — matches ci.yml.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'branch' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-22.04
+    permissions:
+      # upload-sarif to code scanning
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: rust
+            build-mode: manual
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Tauri host requirements (same package set as release.yml's Linux leg).
+      - name: Linux system deps (rust only)
+        if: matrix.language == 'rust'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential curl wget file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libasound2-dev
+
+      - name: Setup Rust (stable) (rust only)
+        if: matrix.language == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        if: matrix.language == 'rust'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      # Manual build for rust: compile the Tauri app crate. tauri-build's
+      # codegen requires the configured frontendDist directory to exist; the
+      # placeholder is only build scaffolding for the cargo build (the real
+      # frontend is built by ci.yml/release.yml separately).
+      - name: Build Rust crate (cargo build)
+        if: matrix.language == 'rust'
+        run: |
+          set -euo pipefail
+          mkdir -p frontend/dist
+          cargo build --manifest-path frontend/src-tauri/Cargo.toml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
