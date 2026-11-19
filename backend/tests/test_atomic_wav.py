@@ -66,8 +66,10 @@ class TestAtomicity:
 
         # Patch the symbol *inside* the audio_io module, not the global —
         # rebinding torchaudio.save would leak into other tests.
+        # Patch the audited wrapper (the seam atomic_save_wav calls) rather
+        # than torchaudio.save — the WAV path now encodes via soundfile.
         monkeypatch.setattr(
-            "services.audio_io.torchaudio.save", explode
+            "services.audio_io._safe_torchaudio_save", explode
         )
 
         with pytest.raises(RuntimeError, match="simulated kill"):
@@ -85,8 +87,10 @@ class TestAtomicity:
         def explode(*args, **kwargs):
             raise RuntimeError("boom")
 
+        # Patch the audited wrapper (the seam atomic_save_wav calls) rather
+        # than torchaudio.save — the WAV path now encodes via soundfile.
         monkeypatch.setattr(
-            "services.audio_io.torchaudio.save", explode
+            "services.audio_io._safe_torchaudio_save", explode
         )
 
         with pytest.raises(RuntimeError):
@@ -104,8 +108,10 @@ class TestAtomicity:
         def explode(*args, **kwargs):
             raise RuntimeError("boom")
 
+        # Patch the audited wrapper (the seam atomic_save_wav calls) rather
+        # than torchaudio.save — the WAV path now encodes via soundfile.
         monkeypatch.setattr(
-            "services.audio_io.torchaudio.save", explode
+            "services.audio_io._safe_torchaudio_save", explode
         )
 
         with pytest.raises(RuntimeError):
@@ -127,14 +133,14 @@ class TestAtomicity:
         # Capture the path torchaudio.save is called with, then call the
         # real implementation so the test still ends in a valid WAV.
         from services import audio_io as _aio
-        real_save = _aio.torchaudio.save
+        real_write = _aio._safe_soundfile_write
 
         def spy(path, *args, **kwargs):
             captured.append(path)
-            return real_save(path, *args, **kwargs)
+            return real_write(path, *args, **kwargs)
 
         import unittest.mock
-        with unittest.mock.patch.object(_aio.torchaudio, "save", side_effect=spy):
+        with unittest.mock.patch.object(_aio, "_safe_soundfile_write", side_effect=spy):
             atomic_save_wav(str(target), torch.zeros(1, 100), 24000)
 
         assert len(captured) == 1

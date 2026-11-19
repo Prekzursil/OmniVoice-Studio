@@ -156,13 +156,26 @@ def _safe_torchaudio_save(
     fmt = (format or "wav").lower()
     try:
         if fmt == "wav":
-            torchaudio.save(
+            # torchaudio 2.9 removed the sox/soundfile backends and routes
+            # save() through TorchCodec exclusively — whose CUDA-linked
+            # wheels cannot even load outside a full CUDA toolkit
+            # environment (libnppicc.so.12 et al.). WAV encoding is exactly
+            # what soundfile does best, so encode via the audited sibling
+            # helper with the equivalent subtype: same bytes on disk, no
+            # TorchCodec import on the critical path.
+            subtype = "FLOAT" if encoding == "PCM_F" else {
+                16: "PCM_16",
+                24: "PCM_24",
+                32: "PCM_32",
+                64: "DOUBLE",
+            }.get(bits_per_sample, "PCM_16")
+            _safe_soundfile_write(
                 path_or_buf,
-                tensor,
+                tensor.numpy().T,
                 sample_rate,
-                format=fmt,
-                encoding=encoding,
-                bits_per_sample=bits_per_sample,
+                subtype=subtype,
+                # file-like targets carry no extension for soundfile to sniff
+                sf_format="WAV",
             )
         else:
             # FLAC accepts encoding + bits_per_sample; mp3/ogg ignore
@@ -206,6 +219,7 @@ def _safe_soundfile_write(
     sample_rate: int,
     *,
     subtype: str = "PCM_16",
+    sf_format: str | None = None,
 ) -> None:
     """Sibling helper for the one in-tree ``sf.write`` site.
 
@@ -223,6 +237,9 @@ def _safe_soundfile_write(
         subtype: Soundfile subtype string. ``"PCM_16"`` (default) for
             standard 16-bit PCM WAV; ``"PCM_24"``, ``"FLOAT"`` etc.
             also work.
+        sf_format: Explicit libsndfile format (e.g. ``"WAV"``). Required
+            when writing to a file-like object — soundfile cannot infer the
+            container from a filename-less buffer.
 
     Raises:
         ValueError: if the array is empty.
@@ -259,7 +276,10 @@ def _safe_soundfile_write(
     else:
         samples = np.ascontiguousarray(samples)
 
-    sf.write(path, samples, sample_rate, subtype=subtype)
+    if sf_format is not None:
+        sf.write(path, samples, sample_rate, subtype=subtype, format=sf_format)
+    else:
+        sf.write(path, samples, sample_rate, subtype=subtype)
 
 
 def atomic_save_wav(

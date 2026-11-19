@@ -257,8 +257,11 @@ pub fn install_ffmpeg_standalone(dest: &Path, region: &str) -> io::Result<()> {
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("zip entry: {}", e)))?;
-            let name = file.name().to_string();
-            let basename = name.rsplit('/').next().unwrap_or(&name);
+            // zip 9: `name()` validates the entry name and returns Result<Cow<str>>.
+            let name = file.name()
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("zip entry name: {}", e)))?
+                .to_string();
+            let basename = name.rsplit('/').next().unwrap_or(&name).to_string();
             if basename == "ffmpeg.exe" || basename == "ffprobe.exe" {
                 let out_path = dest.join(basename);
                 let mut out_file = fs::File::create(&out_path)?;
