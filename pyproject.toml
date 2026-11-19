@@ -44,13 +44,15 @@ dependencies = [
     "webdataset",
     "numpy",
     "soundfile",
-    # whisperx / faster-whisper import `pkg_resources` at runtime. setuptools
-    # 80+ DROPPED the bundled pkg_resources, so an unpinned ">=75" now resolves
-    # to a version WITHOUT it → "No module named 'pkg_resources'", which both
-    # breaks WhisperX transcription and makes its is_available() report false
-    # ("No ASR backend is ready"). Cap below 80 so pkg_resources stays present
-    # (issue #224; also #58). Revisit when whisperx/faster-whisper drop the
-    # pkg_resources dependency.
+    # setuptools 80+ dropped the bundled pkg_resources which whisperx 3.4.2
+    # imports at runtime (issue #224; also #58). The obvious escape —
+    # whisperx 3.8.x, which no longer imports pkg_resources — is BLOCKED
+    # because every 3.8.x release pins torch~=2.8.0 / torchaudio~=2.8.0,
+    # incompatible with the torch==2.10.0 security fix (GHSA, torchaudio
+    # < 2.10.0) applied in this repo. Re-verified 2026-11-19 via PyPI
+    # metadata for whisperx 3.8.0/3.8.3/3.8.5/3.8.6. Whichever upstream
+    # moves first (whisperx supporting torch 2.10, or a whisperx 3.4-line
+    # release dropping pkg_resources) unblocks lifting this cap to >=84.1.0.
     "setuptools>=75,<80",
     "psutil>=7.2.2",
     # Pinned to 3.x — pyannote 4.x removed `use_auth_token` from `Inference`
@@ -67,7 +69,7 @@ dependencies = [
     # Pulls `faster-whisper` transitively, so a WhisperX install also provides
     # the plain faster-whisper backend as a fallback for rare-language audio
     # where no wav2vec2 alignment model exists.
-    "whisperx>=3.1.0",
+    "whisperx>=3.1.0,<3.5",  # 3.4.x line: torch range is open (>=2.5.1) so torch 2.10 resolves; 3.8.x pins torch~=2.8
     "faster-whisper>=1.0.0",
     # Apple Silicon-only speedup; skipped everywhere else so `uv sync` can
     # succeed on Linux/Windows/mac-Intel (no mlx wheels exist for those).
@@ -176,8 +178,8 @@ explicit = true
 
 [tool.uv]
 constraint-dependencies = [
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
+    "torch==2.10.0",
+    "torchaudio==2.10.0",
 ]
 
 [tool.hatch.metadata]
